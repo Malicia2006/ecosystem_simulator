@@ -8,23 +8,34 @@ namespace Graphics {
 
 class Window {
 private:
+    // 🔒 RESSOURCES SDL
     SDL_Window* mWindow;
     SDL_Renderer* mRenderer;
-    int mWidth;
-    int mHeight;
+    float mWidth;
+    float mHeight;
     bool mIsInitialized;
     std::string mTitle;
+
 public:
-    Window(const std::string& title, int width, int height);
+    // 🏗 CONSTRUCTEUR/DESTRUCTEUR
+    Window(const std::string& title, float width, float height);
     ~Window();
+    
+    // ⚙️ INITIALISATION
     bool Initialize();
     void Shutdown();
-    void Clear(const Core::Color& color = Core::Color(30,30,30));
+    
+    // 🎨 RENDU
+    void Clear(const Core::Color& color = Core::Color(30, 30, 30));
     void Present();
+    
+    // 📊 GETTERS
     SDL_Renderer* GetRenderer() const { return mRenderer; }
     bool IsInitialized() const { return mIsInitialized; }
-    int GetWidth() const { return mWidth; }
-    int GetHeight() const { return mHeight; }
+    float GetWidth() const { return mWidth; }
+    float GetHeight() const { return mHeight; }
+    std::string GetTitle() const { return mTitle; }
 };
+
 } // namespace Graphics
 } // namespace Ecosystem

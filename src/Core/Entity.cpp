@@ -1,191 +1,208 @@
 #include "Core/Entity.hpp"
+#include <cmath>
 #include <iostream>
 #include <algorithm>
 
-namespace Ecosystem
+namespace Ecosystem {
+namespace Core {
+
+// 🏗 CONSTRUCTEUR PRINCIPAL
+Entity::Entity(EntityType type, Vector2D pos, std::string entityName)
+    : mType(type), position(pos), name(entityName), 
+      mRandomGenerator(std::random_device{}())  // Initialisation du générateur aléatoire
 {
-    namespace Core
-    {
+    // 🔧 INITIALISATION SELON LE TYPE
+    switch(mType) {
+        case EntityType::HERBIVORE:
+            mEnergy = 80.0f;
+            mMaxEnergy = 150.0f;
+            mMaxAge = 200;
+            color = Color::Blue();
+            size = 8.0f;
+            break;
+            
+        case EntityType::CARNIVORE:
+            mEnergy = 100.0f;
+            mMaxEnergy = 200.0f;
+            mMaxAge = 150;
+            color = Color::Red();
+            size = 12.0f;
+            break;
+            
+        case EntityType::PLANT:
+            mEnergy = 50.0f;
+            mMaxEnergy = 100.0f;
+            mMaxAge = 300;
+            color = Color::Green();
+            size = 6.0f;
+            break;
+    }    
+    mAge = 0;
+    mIsAlive = true;
+    mVelocity = GenerateRandomDirection();
+    
+    std::cout << "🌱 Entité créée: " << name << " à (" << position.x << ", " << position.y << ")" << std::endl;
+}
 
-        Entity::Entity(EntityType type, Vector2D pos, std::string entityName)
-            : mType(type), position(pos), name(std::move(entityName)),
-              mRandomGenerator(std::random_device{}())
-        {
+// 🏗 CONSTRUCTEUR DE COPIE
+Entity::Entity(const Entity& other)
+    : mType(other.mType), position(other.position), name(other.name + "_copy"),
+      mEnergy(other.mEnergy * 0.7f),  // Enfant a moins d'énergie
+      mMaxEnergy(other.mMaxEnergy),
+      mAge(0),  // Nouvelle entité, âge remis à 0
+      mMaxAge(other.mMaxAge),
+      mIsAlive(true),
+      mVelocity(other.mVelocity),
+      color(other.color),
+      size(other.size * 0.8f),  // Enfant plus petit
+      mRandomGenerator(std::random_device{}())
+{
+    std::cout << "👶 Copie d'entité créée: " << name << std::endl;
+}
 
-            switch (mType)
-            {
-            case EntityType::HERBIVORE:
-                mEnergy = 80.0f;
-                mMaxEnergy = 150.0f;
-                mMaxAge = 200;
-                color = Color::Blue();
-                size = 8.0f;
-                break;
-            case EntityType::CARNIVORE:
-                mEnergy = 100.0f;
-                mMaxEnergy = 200.0f;
-                mMaxAge = 150;
-                color = Color::Red();
-                size = 12.0f;
-                break;
-            case EntityType::PLANT:
-                mEnergy = 50.0f;
-                mMaxEnergy = 100.0f;
-                mMaxAge = 300;
-                color = Color::Green();
-                size = 6.0f;
-                break;
-            }
-            mAge = 0;
-            mIsAlive = true;
-            mVelocity = GenerateRandomDirection();
-            std::cout << "Entity created: " << name << " at (" << position.x << "," << position.y << ")\n";
-        }
+// 🗑 DESTRUCTEUR
+Entity::~Entity() {
+    std::cout << "💀 Entité détruite: " << name << " (Âge: " << mAge << ")" << std::endl;
+}
 
-        Entity::Entity(const Entity &other)
-            : mType(other.mType), position(other.position), name(other.name + "_child"),
-              mEnergy(other.mEnergy * 0.6f), mMaxEnergy(other.mMaxEnergy),
-              mAge(0), mMaxAge(other.mMaxAge), mIsAlive(true),
-              mVelocity(other.mVelocity), color(other.color), size(other.size * 0.8f),
-              mRandomGenerator(std::random_device{}())
-        {
-            std::cout << "Child entity created: " << name << "\n";
-        }
+// ⚙️ MISE À JOUR PRINCIPALE
+void Entity::Update(float deltaTime) {
+    if (!mIsAlive) return;
+    // 🔄 PROCESSUS DE VIE
+    ConsumeEnergy(deltaTime);
+    Age(deltaTime);
+    Move(deltaTime);
+    CheckVitality();
+}
 
-        Entity::~Entity()
-        {
-            // debug destruction
-            // std::cout << "Entity destroyed: " << name << " age=" << mAge << "\n";
-        }
+// 🚶 MOUVEMENT
+void Entity::Move(float deltaTime) {
+    if (mType == EntityType::PLANT) return;  // Les plantes ne bougent pas    
+    
+    // 🎲 Comportement aléatoire occasionnel
+    std::uniform_real_distribution<float> chance(0.0f, 1.0f);
+    if (chance(mRandomGenerator) < 0.02f) {
+        mVelocity = GenerateRandomDirection();
+    }    
+    
+    // 📐 Application du mouvement
+    position = position + mVelocity * deltaTime * 20.0f;
+    
+    // 🔄 Consommation d'énergie due au mouvement
+    mEnergy -= mVelocity.Distance(Vector2D(0, 0)) * deltaTime * 0.1f;
+}
 
-        void Entity::ConsumeEnergy(float deltaTime)
-        {
-            float base = 0.0f;
-            switch (mType)
-            {
-            case EntityType::HERBIVORE:
-                base = 1.5f;
-                break;
-            case EntityType::CARNIVORE:
-                base = 2.0f;
-                break;
-            case EntityType::PLANT:
-                base = -0.2f;
-                break; // plants gain slowly
-            }
-            mEnergy -= base * deltaTime;
-        }
+// 🍽 MANGER
+void Entity::Eat(float energy) {
+    mEnergy += energy;
+    if (mEnergy > mMaxEnergy) {
+        mEnergy = mMaxEnergy;
+    }
+    std::cout << "🍽 " << name << " mange et gagne " << energy << " énergie" << std::endl;
+}
 
-        void Entity::AgeUp(float deltaTime)
-        {
-            mAge += static_cast<int>(deltaTime * 10.0f);
-        }
+// 🔄 CONSOMMATION D'ÉNERGIE
+void Entity::ConsumeEnergy(float deltaTime) {
+    float baseConsumption = 0.0f;
+    
+    switch(mType) {
+        case EntityType::HERBIVORE:
+            baseConsumption = 1.5f;
+            break;
+        case EntityType::CARNIVORE:
+            baseConsumption = 2.0f;
+            break;
+        case EntityType::PLANT:
+            baseConsumption = -0.5f;  // Les plantes génèrent de l'énergie !
+            break;
+    }    
+    
+    mEnergy -= baseConsumption * deltaTime;
+}
 
-        void Entity::CheckVitality()
-        {
-            if (mEnergy <= 0.0f || mAge >= mMaxAge)
-            {
-                mIsAlive = false;
-                // std::cout << name << " died (" << (mEnergy<=0?"starvation":"old age") << ")\n";
-            }
-        }
+// 🎂 VIEILLISSEMENT
+void Entity::Age(float deltaTime) {
+    mAge += static_cast<int>(deltaTime * 10.0f);  // Accéléré pour la simulation
+}
 
-        Vector2D Entity::GenerateRandomDirection()
-        {
-            std::uniform_real_distribution<float> dist(-1.0f, 1.0f);
-            return Vector2D(dist(mRandomGenerator), dist(mRandomGenerator));
-        }
+// ❤️ VÉRIFICATION DE LA SANTÉ
+void Entity::CheckVitality() {
+    if (mEnergy <= 0.0f || mAge >= mMaxAge) {
+        mIsAlive = false;
+        std::cout << "💀 " << name << " meurt - ";
+        if (mEnergy <= 0) std::cout << "Faim";
+        else std::cout << "Vieillesse";
+        std::cout << std::endl;
+    }
+}
 
-        Color Entity::CalculateColorBasedOnState() const
-        {
-            float r = color.r, g = color.g, b = color.b;
-            float ratio = GetEnergyPercentage();
-            if (ratio < 0.3f)
-            {
-                // fade towards red
-                return Color(255, static_cast<uint8_t>(g * ratio), static_cast<uint8_t>(b * ratio));
-            }
-            return color;
-        }
+// 👶 REPRODUCTION
+bool Entity::CanReproduce() const {
+    return mIsAlive && mEnergy > mMaxEnergy * 0.8f && mAge > 20;
+}
 
-        void Entity::Update(float deltaTime)
-        {
-            if (!mIsAlive)
-                return;
-            ConsumeEnergy(deltaTime);
-            AgeUp(deltaTime);
-            Move(deltaTime);
-            CheckVitality();
-        }
+std::unique_ptr<Entity> Entity::Reproduce() {
+    if (!CanReproduce()) return nullptr;
+    
+    // 🎲 Chance de reproduction
+    std::uniform_real_distribution<float> chance(0.0f, 1.0f);
+    if (chance(mRandomGenerator) < 0.3f) {
+        mEnergy *= 0.6f;  // Coût énergétique de la reproduction
+        return std::make_unique<Entity>(*this);  // Utilise le constructeur de copie
+    }
+    return nullptr;
+}
 
-        void Entity::Move(float deltaTime)
-        {
-            if (mType == EntityType::PLANT)
-                return;
-            std::uniform_real_distribution<float> chance(0.0f, 1.0f);
-            if (chance(mRandomGenerator) < 0.02f)
-                mVelocity = GenerateRandomDirection();
-            position = position + mVelocity * deltaTime * 20.0f;
-            // energy cost from movement
-            float mot = std::sqrt(mVelocity.x * mVelocity.x + mVelocity.y * mVelocity.y);
-            mEnergy -= mot * deltaTime * 0.05f;
-        }
+// 🎲 GÉNÉRATION DE DIRECTION ALÉATOIRE
+Vector2D Entity::GenerateRandomDirection() {
+    std::uniform_real_distribution<float> dist(-1.0f, 1.0f);
+    return Vector2D(dist(mRandomGenerator), dist(mRandomGenerator));
+}
 
-        void Entity::Eat(float energy)
-        {
-            mEnergy += energy;
-            if (mEnergy > mMaxEnergy)
-                mEnergy = mMaxEnergy;
-        }
+// 🎨 CALCUL DE LA COULEUR BASÉE SUR L'ÉTAT
+Color Entity::CalculateColorBasedOnState() const {
+    float energyRatio = GetEnergyPercentage();
+    
+    Color baseColor = color;
+    
+    // 🔴 Rouge si faible énergie
+    if (energyRatio < 0.3f) {
+        baseColor.r = 255;
+        baseColor.g = static_cast<uint8_t>(baseColor.g * energyRatio);
+        baseColor.b = static_cast<uint8_t>(baseColor.b * energyRatio);
+    }    
+    
+    return baseColor;
+}
 
-        bool Entity::CanReproduce() const
-        {
-            return mIsAlive && (mEnergy > mMaxEnergy * 0.8f) && (mAge > 20);
-        }
+// 🎨 RENDU GRAPHIQUE
+void Entity::Render(SDL_Renderer* renderer) const {
+    if (!mIsAlive) return;
+    
+    Color renderColor = CalculateColorBasedOnState();
+    SDL_FRect rect = {
+        position.x - size / 2.0f,
+        position.y - size / 2.0f,
+        size,
+        size
+    };
+    
+    SDL_SetRenderDrawColor(renderer, renderColor.r, renderColor.g, renderColor.b, renderColor.a);
+    SDL_RenderFillRect(renderer, ▭);
+    
+    // 🔵 Indicateur d'énergie (barre de vie)
+    if (mType != EntityType::PLANT) {
+        float energyBarWidth = size * GetEnergyPercentage();
+        SDL_FRect energyBar = {
+            position.x - size / 2.0f,
+            position.y - size / 2.0f - 3.0f,
+            energyBarWidth,
+            2.0f
+        };
+        SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);
+        SDL_RenderFillRect(renderer, &energyBar);
+    }
+}
 
-        std::unique_ptr<Entity> Entity::Reproduce()
-        {
-            if (!CanReproduce())
-                return nullptr;
-            std::uniform_real_distribution<float> chance(0.0f, 1.0f);
-            if (chance(mRandomGenerator) < 0.25f)
-            {
-                mEnergy *= 0.6f;
-                return std::make_unique<Entity>(*this);
-            }
-            return nullptr;
-        }
-
-        void Entity::Render(SDL_Renderer *renderer) const
-        {
-            if (!mIsAlive)
-                return;
-            Color rc = CalculateColorBasedOnState();
-            // convert float position/size to int rect (simple)
-            SDL_FRect rect;
-            rect.x = position.x - size / 2.0f;
-            rect.y = position.y - size / 2.0f;
-            rect.w = size;
-            rect.h = size;
-
-            SDL_SetRenderDrawColor(renderer, rc.r, rc.g, rc.b, rc.a);
-            SDL_RenderFillRect(renderer, &rect);
-
-            // energy bar
-            if (mType != EntityType::PLANT)
-            {
-                float pct = GetEnergyPercentage();
-
-                SDL_FRect eb;
-                eb.x = rect.x;
-                eb.y = rect.y - 4.0f;
-                eb.w = rect.w * pct;
-                eb.h = 3.0f;
-
-                SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);
-                SDL_RenderFillRect(renderer, &eb);
-            }
-        }
-
-    } // namespace Core
+} // namespace Core
 } // namespace Ecosystem
